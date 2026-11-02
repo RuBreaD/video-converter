@@ -1,0 +1,111 @@
+openapi: 3.0.3
+info:
+  title: Video Jobs API
+  version: 1.0.0
+  description: Асинхронное преобразование видео в MP4/H.264 до 720p.
+servers:
+  - url: /
+paths:
+  /videos:
+    post:
+      summary: Загрузить видео и создать задание
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "202":
+          description: Задание принято
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jobId: { type: string }
+                  status: { type: string, enum: [queued] }
+        "400": { description: Некорректный файл или запрос }
+        "413": { description: Файл превышает лимит }
+        "503": { description: Очередь заполнена или сервис останавливается }
+  /jobs:
+    get:
+      summary: Список заданий
+      responses:
+        "200":
+          description: Задания
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Job" }
+  /jobs/{id}:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    get:
+      summary: Состояние задания
+      responses:
+        "200":
+          description: Задание
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+        "404": { description: Задание не найдено }
+  /jobs/{id}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    post:
+      summary: Отменить ожидающее или выполняющееся задание
+      responses:
+        "200":
+          description: Задание отменено
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+        "404": { description: Задание не найдено }
+        "409": { description: Задание уже завершено }
+  /jobs/{id}/result:
+    parameters:
+      - $ref: "#/components/parameters/JobId"
+    get:
+      summary: Скачать готовый MP4
+      responses:
+        "200":
+          description: Результат
+          content:
+            video/mp4:
+              schema: { type: string, format: binary }
+        "404": { description: Задание или файл не найдены }
+        "409": { description: Задание не завершилось успешно }
+components:
+  parameters:
+    JobId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+  schemas:
+    Job:
+      type: object
+      required: [id, inputFile, outputFile, status, createdAt, inputSize]
+      properties:
+        id: { type: string }
+        inputFile: { type: string }
+        outputFile: { type: string }
+        status:
+          {
+            type: string,
+            enum: [queued, processing, completed, failed, canceled, timed_out],
+          }
+        createdAt: { type: string, format: date-time }
+        startedAt: { type: string, format: date-time }
+        finishedAt: { type: string, format: date-time }
+        error: { type: string }
+        exitCode: { type: integer }
+        inputSize: { type: integer, format: int64 }
+        outputSize: { type: integer, format: int64 }
